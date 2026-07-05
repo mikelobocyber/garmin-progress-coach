@@ -4,9 +4,12 @@ import csv
 import hashlib
 import io
 import re
+from datetime import datetime
 from typing import Any
 
 from dateutil import parser as date_parser
+
+from app.services.categories import activity_category
 
 MILES_PER_KM = 0.621371
 KM_PER_MILE = 1.609344
@@ -151,10 +154,51 @@ def parse_start_time(value: Any) -> str | None:
 
 
 def make_fingerprint(activity: dict[str, Any]) -> str:
-    basis = "|".join(
-        str(activity.get(key) or "")
-        for key in ["activity_type", "title", "start_time", "distance_miles", "duration_seconds"]
-    )
+    """Fingerprint used to dedupe activities across uploads AND formats.
+
+    The same workout imported from a CSV export and a FIT file must collapse
+    to one row, but the two formats disagree on details: FIT has no title,
+    distances differ in the 3rd decimal after unit conversion, and durations
+    differ (moving vs elapsed time). So for timestamped activities the
+    fingerprint uses only what both formats agree on: the category bucket,
+    the start time floored to the minute, and the distance rounded to the
+    nearest 0.05 mi.
+
+    Date-only rows (some CSV exports omit the time, which parses as
+    midnight) keep duration and title in the basis so two similar workouts
+    on the same day stay distinct; matching those against timed FIT copies
+    is handled by the day-level merge in insert_activities.
+
+    Rows without a parseable start time fall back to the older exact-value
+    basis, which still dedupes identical re-uploads.
+    """
+    parsed_start = None
+    raw_start = activity.get("start_time")
+    if raw_start:
+        try:
+            parsed_start = datetime.fromisoformat(str(raw_start).replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            parsed_start = None
+
+    distance = activity.get("distance_miles")
+    distance_token = f"{round(float(distance) / 0.05) * 0.05:.2f}" if distance else ""
+
+    if parsed_start and (parsed_start.hour, parsed_start.minute, parsed_start.second) != (0, 0, 0):
+        minute = parsed_start.replace(second=0, microsecond=0).isoformat()
+        basis = "|".join([activity_category(activity), minute, distance_token])
+    elif parsed_start:
+        basis = "|".join([
+            activity_category(activity),
+            parsed_start.date().isoformat(),
+            distance_token,
+            str(activity.get("duration_seconds") or ""),
+            str(activity.get("title") or ""),
+        ])
+    else:
+        basis = "|".join(
+            str(activity.get(key) or "")
+            for key in ["activity_type", "title", "start_time", "distance_miles", "duration_seconds"]
+        )
     return hashlib.sha256(basis.encode("utf-8")).hexdigest()
 
 

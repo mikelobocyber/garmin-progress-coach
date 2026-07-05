@@ -6,3 +6,4 @@ python-dateutil>=2.9.0
 openai>=1.40.0
 pytest>=8.2.0
 httpx>=0.27.0
+garmin-fit-sdk>=21.158.0

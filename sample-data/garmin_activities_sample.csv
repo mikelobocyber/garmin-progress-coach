@@ -1,6 +1,6 @@
-Activity Type,Date,Title,Distance,Time,Calories,Avg HR,Max HR,Avg Pace,Best Pace
-Running,2026-06-29 07:10:00,Easy Run,2.20,00:24:12,260,149,166,11:00,08:42
-Running,2026-07-01 18:25:00,Intervals,2.75,00:27:30,325,164,184,10:00,06:58
-Strength Training,2026-07-02 17:40:00,Lower Body Strength,0,00:48:00,310,118,154,,
-Running,2026-07-04 08:05:00,Two Mile Check,2.00,00:18:24,240,171,187,09:12,08:30
-Walking,2026-07-05 10:00:00,Recovery Walk,1.50,00:28:00,115,104,128,18:40,16:00
+Activity Type,Date,Title,Distance,Time,Avg HR,Max HR,Calories,Avg Pace
+Running,2026-07-01,Easy Run,3.10,00:31:00,148,171,330,10:00
+Strength Training,2026-07-02,Upper Body Lift,,00:46:00,116,151,240,
+Cycling,2026-07-03,Zone 2 Bike,8.50,00:38:00,132,158,360,
+Running,2026-07-04,Two Mile Benchmark,2.00,00:18:24,171,188,260,09:12
+Walking,2026-07-05,Recovery Walk,1.60,00:31:30,101,119,130,19:41

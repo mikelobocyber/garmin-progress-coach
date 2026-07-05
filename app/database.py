@@ -63,6 +63,11 @@ def init_db() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_activities_start_time ON activities (start_time)"
         )
+        # Expression index so the day-level duplicate lookup in
+        # insert_activities stays fast on large imports.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activities_day ON activities (substr(start_time, 1, 10))"
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS settings (
@@ -79,11 +84,99 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _merge_into_existing(conn: sqlite3.Connection, fingerprint: str, activity: dict[str, Any], upgrade_time: str | None = None) -> None:
+    """Fill NULL fields on a stored duplicate with values from a new copy.
+
+    Same workout seen again (e.g. CSV first, FIT later): instead of
+    discarding the new copy, use it to fill in fields the stored row is
+    missing — FIT files carry data the CSV export may lack, and vice
+    versa (titles). When upgrade_time is set, the stored date-only
+    timestamp (and its fingerprint) is replaced with the precise one.
+    """
+    conn.execute(
+        """
+        UPDATE activities SET
+            distance_miles = COALESCE(distance_miles, ?),
+            duration_seconds = COALESCE(duration_seconds, ?),
+            calories = COALESCE(calories, ?),
+            avg_hr = COALESCE(avg_hr, ?),
+            max_hr = COALESCE(max_hr, ?),
+            avg_pace_seconds_per_mile = COALESCE(avg_pace_seconds_per_mile, ?),
+            best_pace_seconds_per_mile = COALESCE(best_pace_seconds_per_mile, ?),
+            title = CASE
+                WHEN (title IS NULL OR title = '' OR title = 'Garmin Activity') AND ? != 'Garmin Activity'
+                THEN ? ELSE title
+            END,
+            start_time = COALESCE(?, start_time),
+            fingerprint = COALESCE(?, fingerprint)
+        WHERE fingerprint = ?
+        """,
+        (
+            activity.get("distance_miles"),
+            activity.get("duration_seconds"),
+            activity.get("calories"),
+            activity.get("avg_hr"),
+            activity.get("max_hr"),
+            activity.get("avg_pace_seconds_per_mile"),
+            activity.get("best_pace_seconds_per_mile"),
+            activity.get("title"),
+            activity.get("title"),
+            upgrade_time,
+            activity["fingerprint"] if upgrade_time else None,
+            fingerprint,
+        ),
+    )
+
+
+def _is_dateonly(start_time: str | None) -> bool:
+    return bool(start_time) and str(start_time).endswith("T00:00:00")
+
+
+def _distance_token(value: Any) -> str:
+    return f"{round(float(value) / 0.05) * 0.05:.2f}" if value else ""
+
+
+def _find_day_level_match(conn: sqlite3.Connection, activity: dict[str, Any]) -> dict[str, Any] | None:
+    """Match a timed activity against a stored date-only copy (or vice versa).
+
+    Some CSV exports carry only a date, which parses as midnight, so the
+    minute-level fingerprint can never equal the FIT copy's. When exactly
+    one side lacks a time-of-day, fall back to matching on the same day,
+    category bucket, and distance bucket.
+    """
+    from app.services.categories import activity_category
+
+    start = activity.get("start_time")
+    if not start:
+        return None
+    day = str(start)[:10]
+    rows = conn.execute(
+        "SELECT * FROM activities WHERE substr(start_time, 1, 10) = ?", (day,)
+    ).fetchall()
+    for row in rows:
+        stored = dict(row)
+        if _is_dateonly(stored.get("start_time")) == _is_dateonly(start):
+            continue  # both timed or both date-only: fingerprints already decide
+        if activity_category(stored) != activity_category(activity):
+            continue
+        if _distance_token(stored.get("distance_miles")) != _distance_token(activity.get("distance_miles")):
+            continue
+        return stored
+    return None
+
+
 def insert_activities(activities: Iterable[dict[str, Any]]) -> tuple[int, int]:
     inserted = 0
-    skipped = 0
+    merged = 0
     with get_connection() as conn:
         for activity in activities:
+            match = _find_day_level_match(conn, activity)
+            if match is not None:
+                # Upgrade the stored row's timestamp when the new copy has one.
+                upgrade = activity.get("start_time") if _is_dateonly(match.get("start_time")) else None
+                _merge_into_existing(conn, match["fingerprint"], activity, upgrade_time=upgrade)
+                merged += 1
+                continue
             try:
                 conn.execute(
                     """
@@ -113,9 +206,10 @@ def insert_activities(activities: Iterable[dict[str, Any]]) -> tuple[int, int]:
                 )
                 inserted += 1
             except sqlite3.IntegrityError:
-                skipped += 1
+                _merge_into_existing(conn, activity["fingerprint"], activity)
+                merged += 1
         conn.commit()
-    return inserted, skipped
+    return inserted, merged
 
 
 def fetch_activities(limit: int = 50, activity_type: str | None = None) -> list[dict[str, Any]]:

@@ -22,7 +22,7 @@ if [ ! -f ".env" ]; then
 fi
 
 echo ""
-echo "Starting Garmin AI Coach..."
+echo "Starting Garmin Progress Coach..."
 echo "Open: http://localhost:8000"
 if [ "$HOST" = "0.0.0.0" ]; then
   echo "LAN mode: other devices on your network can also connect."

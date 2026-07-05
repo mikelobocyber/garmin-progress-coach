@@ -18,7 +18,7 @@ IF NOT EXIST .env (
 )
 
 echo.
-echo Starting Garmin AI Coach...
+echo Starting Garmin Progress Coach...
 echo Open: http://localhost:8000
 echo.
 uvicorn app.main:app --reload --host %HOST% --port 8000

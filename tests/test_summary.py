@@ -1,6 +1,6 @@
 from app.database import insert_acft_entry, insert_activities
 from app.services.garmin_parser import make_fingerprint
-from app.services.summary import build_acft_projection, build_latest_summary
+from app.services.summary import activity_category, build_acft_projection, build_latest_summary
 
 
 def _activity(**overrides):
@@ -23,7 +23,7 @@ def test_empty_summary_has_safe_defaults(temp_db):
     summary = build_latest_summary()
     assert summary["activity_count_total"] == 0
     assert summary["recent_runs"] == 0
-    assert "No recent runs found in uploaded data" in summary["recovery_flags"]
+    assert "No recent activities found in uploaded data" in summary["recovery_flags"]
 
     projection = build_acft_projection()
     assert projection["status"] == "Needs data"
@@ -57,3 +57,22 @@ def test_duplicate_insert_is_skipped(temp_db):
     inserted, skipped = insert_activities([activity, dict(activity)])
     assert inserted == 1
     assert skipped == 1
+
+
+def test_activity_category_detects_strength_and_cardio(temp_db):
+    assert activity_category({"activity_type": "Strength Training", "title": "Upper Body Lift"}) == "strength"
+    assert activity_category({"activity_type": "Cycling", "title": "Zone 2 Bike"}) == "cycling"
+    assert activity_category({"activity_type": "Cardio", "title": "Elliptical"}) == "cardio"
+
+
+def test_summary_counts_strength_and_cardio_sessions(temp_db):
+    insert_activities([
+        _activity(activity_type="Strength Training", title="Upper Body Lift", distance_miles=None, duration_seconds=2700),
+        _activity(activity_type="Cycling", title="Zone 2 Bike", distance_miles=8.0, duration_seconds=2100),
+        _activity(activity_type="Running", title="Easy Run", distance_miles=2.0, duration_seconds=1200),
+    ])
+    summary = build_latest_summary()
+    assert summary["recent_strength_sessions"] == 1
+    assert summary["recent_cardio_sessions"] == 2
+    labels = {item["label"] for item in summary["recent_training_mix"]}
+    assert {"Strength", "Cycling", "Running"}.issubset(labels)

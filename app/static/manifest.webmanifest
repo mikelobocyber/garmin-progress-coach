@@ -1,6 +1,6 @@
 {
-  "name": "Garmin AI Coach",
-  "short_name": "AI Coach",
+  "name": "Garmin Progress Coach",
+  "short_name": "Progress",
   "description": "Local-first Garmin training dashboard for general fitness progress, running, recovery, and optional ACFT tracking.",
   "start_url": "/",
   "display": "standalone",

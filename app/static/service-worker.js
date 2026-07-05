@@ -1,4 +1,4 @@
-const CACHE_NAME = "garmin-ai-coach-v2";
+const CACHE_NAME = "garmin-progress-coach-v1";
 const ASSETS = ["/", "/static/styles.css", "/static/app.js", "/manifest.webmanifest", "/static/icon.svg"];
 
 self.addEventListener("install", (event) => {

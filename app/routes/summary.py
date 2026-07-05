@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.database import fetch_activities
 from app.security import require_token
-from app.services.summary import build_latest_summary, build_training_projection
+from app.services.summary import activity_category, build_latest_summary, build_training_projection
 
 router = APIRouter(prefix="/api", tags=["summary"])
 
@@ -21,8 +21,16 @@ def recent_runs(limit: int = Query(default=20, ge=1, le=100), _: None = Depends(
 
 
 @router.get("/activities")
-def activities(limit: int = Query(default=50, ge=1, le=200), _: None = Depends(require_token)):
-    return {"activities": fetch_activities(limit=limit)}
+def activities(
+    limit: int = Query(default=50, ge=1, le=200),
+    category: str | None = Query(default=None, description="Optional broad category such as running, strength, cardio, cycling, mobility, walking_hiking, or other."),
+    _: None = Depends(require_token),
+):
+    items = fetch_activities(limit=limit)
+    if category:
+        wanted = category.strip().lower()
+        items = [item for item in items if activity_category(item) == wanted]
+    return {"activities": items}
 
 
 @router.get("/training/projection", operation_id="trainingProjection")

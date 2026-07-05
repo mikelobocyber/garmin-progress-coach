@@ -6,14 +6,14 @@
     <meta name="theme-color" content="#111827" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/static/styles.css" />
-    <title>Garmin AI Coach</title>
+    <title>Garmin Progress Coach</title>
   </head>
   <body>
     <header class="app-header">
       <div>
         <p class="eyebrow">Local-first training dashboard</p>
-        <h1>Garmin AI Coach</h1>
-        <p class="subtitle">Upload Garmin CSVs, track running/recovery/strength progress, and ask for simple coaching. ACFT tracking is optional.</p>
+        <h1>Garmin Progress Coach</h1>
+        <p class="subtitle">Upload Garmin CSVs, track running, lifting, cardio, recovery, and general progress, then ask for simple coaching. ACFT tracking is optional.</p>
       </div>
       <button id="refreshBtn" class="secondary-button">Refresh</button>
     </header>
@@ -21,21 +21,37 @@
     <main>
       <section class="card hero-card">
         <div>
-          <p class="eyebrow">Current 2-mile benchmark</p>
-          <h2 id="twoMileMarker">—</h2>
-          <p id="goalText">Goal: —</p>
+          <p class="eyebrow">Current training snapshot</p>
+          <h2 id="trainingStatus">—</h2>
+          <p id="goalText">Running goal: —</p>
         </div>
         <div class="hero-grid">
           <div>
-            <span class="metric-label">Recent runs</span>
+            <span class="metric-label">Sessions</span>
+            <strong id="recentSessions">—</strong>
+          </div>
+          <div>
+            <span class="metric-label">Minutes</span>
+            <strong id="recentMinutes">—</strong>
+          </div>
+          <div>
+            <span class="metric-label">Strength</span>
+            <strong id="strengthSessions">—</strong>
+          </div>
+          <div>
+            <span class="metric-label">Cardio</span>
+            <strong id="cardioSessions">—</strong>
+          </div>
+          <div>
+            <span class="metric-label">Runs</span>
             <strong id="recentRuns">—</strong>
           </div>
           <div>
-            <span class="metric-label">Recent miles</span>
+            <span class="metric-label">Run miles</span>
             <strong id="recentMiles">—</strong>
           </div>
           <div>
-            <span class="metric-label">Avg pace</span>
+            <span class="metric-label">Avg run pace</span>
             <strong id="avgPace">—</strong>
           </div>
           <div>
@@ -48,20 +64,51 @@
       <section class="grid two-col">
         <article class="card">
           <div class="section-heading">
-            <h2>Upload Garmin CSV</h2>
-            <p>Start with Garmin Connect activity CSV exports. FIT/TCX/GPX can come later.</p>
+            <h2>Upload Garmin files</h2>
+            <p>CSV exports, .fit files, or the .zip from "Export Original" — pick several at once. Runs, lifting, cycling, cardio, walking, hiking, mobility, and more.</p>
           </div>
           <form id="uploadForm" class="stack">
-            <input id="garminFile" type="file" accept=".csv,text/csv" />
+            <input id="garminFile" type="file" accept=".csv,.fit,.zip,text/csv,application/zip" multiple />
             <button type="submit">Import activities</button>
           </form>
           <p id="uploadStatus" class="status" role="status" aria-live="polite"></p>
+          <details class="help-details">
+            <summary>Where do I find these files?</summary>
+            <p><strong>CSV (many activities):</strong> Garmin Connect → Activities → All Activities → Export CSV (top right).</p>
+            <p><strong>FIT (one activity, richer data):</strong> open an activity in Garmin Connect → gear icon → Export Original. The downloaded .zip can be uploaded as-is.</p>
+            <p><strong>From your watch:</strong> plug it in via USB and copy files from <code>GARMIN/Activity/</code>. Non-activity files are skipped automatically.</p>
+          </details>
         </article>
 
         <article class="card">
           <div class="section-heading">
+            <h2>Settings</h2>
+            <p>Optional keys are saved only in this browser. The OpenAI key is sent only when you ask the coach a question.</p>
+          </div>
+          <form id="settingsForm" class="stack">
+            <label>OpenAI API key
+              <input id="openaiKey" type="password" placeholder="sk-... optional" autocomplete="off" />
+            </label>
+            <label>OpenAI model
+              <input id="openaiModel" type="text" placeholder="gpt-4.1-mini" autocomplete="off" />
+            </label>
+            <label>Server API token
+              <input id="serverToken" type="password" placeholder="Only needed if APP_SECRET_TOKEN is set" autocomplete="off" />
+            </label>
+            <div class="button-row">
+              <button type="submit">Save settings</button>
+              <button id="clearSettingsBtn" type="button" class="secondary-button">Clear</button>
+            </div>
+          </form>
+          <p id="settingsStatus" class="status" role="status" aria-live="polite"></p>
+        </article>
+      </section>
+
+      <section class="grid two-col">
+        <article class="card">
+          <div class="section-heading">
             <h2>Manual progress entry</h2>
-            <p>Add what Garmin does not track: body weight, strength, push-ups, plank, agility/SDC, notes, or a 2-mile benchmark.</p>
+            <p>Add what Garmin may not capture well: body weight, lifting numbers, push-ups, plank, agility/SDC, notes, or a 2-mile benchmark.</p>
           </div>
           <form id="acftForm" class="form-grid">
             <label>Date <input name="entry_date" type="date" /></label>
@@ -71,24 +118,32 @@
             <label>Plank seconds <input name="plank_seconds" type="number" placeholder="102" /></label>
             <label>Push-ups <input name="pushups" type="number" placeholder="35" /></label>
             <label>2-mile seconds <input name="two_mile_seconds" type="number" placeholder="1104" /></label>
-            <label class="full">Notes <input name="notes" type="text" placeholder="Easy run felt good, lifting felt heavy, slept poorly..." /></label>
+            <label class="full">Notes <input name="notes" type="text" placeholder="Leg day felt strong, easy bike, slept poorly, shoulders sore..." /></label>
             <button type="submit" class="full">Save progress entry</button>
           </form>
           <p id="acftStatus" class="status" role="status" aria-live="polite"></p>
         </article>
-      </section>
 
-      <section class="grid two-col">
         <article class="card">
           <div class="section-heading">
             <h2>Coach</h2>
-            <p>Works without an OpenAI key using a built-in fallback. Add a key for better answers.</p>
+            <p>Works without an OpenAI key using a built-in fallback. Paste a key in Settings for richer answers.</p>
           </div>
           <form id="coachForm" class="stack">
             <textarea id="coachQuestion" placeholder="What should I do tomorrow to improve without wrecking recovery?" rows="4"></textarea>
             <button type="submit">Ask coach</button>
           </form>
           <pre id="coachAnswer" class="answer-box" aria-live="polite"></pre>
+        </article>
+      </section>
+
+      <section class="grid two-col">
+        <article class="card">
+          <div class="section-heading">
+            <h2>Training mix</h2>
+            <p>Broad activity categories from your latest Garmin data window.</p>
+          </div>
+          <div id="trainingMix" class="mix-list"></div>
         </article>
 
         <article class="card">
@@ -114,6 +169,7 @@
             <thead>
               <tr>
                 <th>Date</th>
+                <th>Category</th>
                 <th>Type</th>
                 <th>Title</th>
                 <th>Distance</th>
@@ -129,7 +185,7 @@
     </main>
 
     <footer>
-      <p>Private by default. Data stays in your local SQLite database unless you connect OpenAI or deploy it.</p>
+      <p>Private by default. Data stays in your local SQLite database unless you connect OpenAI, type an API key for a coach request, or deploy it yourself.</p>
     </footer>
 
     <script src="/static/app.js"></script>

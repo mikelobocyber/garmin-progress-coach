@@ -24,7 +24,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="Garmin AI Coach API",
+    title="Garmin Progress Coach API",
     description=(
         "A local-first Garmin training dashboard and coaching API for running, "
         "recovery, strength, general fitness progress, and optional ACFT tracking."
